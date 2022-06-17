@@ -2,3 +2,8 @@
 
 # 結果出力ファイル
 testcases/**/actual.txt
+
+
+# Added by cargo
+
+/target
