@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
-use std::path::Path;
+use std::path::PathBuf;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,8 @@ const LIMIT: u32 = 10;
 #[clap(about, long_about = None)]
 struct Args {
     /// Path to CSV file
-    csv_file_path: String,
+    #[clap(parse(from_os_str))]
+    csv_file_path: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -44,10 +45,11 @@ impl ScoreData {
     }
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), anyhow::Error> {
     let arg = Args::parse();
-    let path = Path::new(&arg.csv_file_path);
-    let mut reader = csv::Reader::from_path(path)?;
+    // let reader = BufReader::new(File::open(arg.csv_file_path)?);
+    // let mut reader = csv::Reader::from_reader(reader);
+    let mut reader = csv::Reader::from_path(arg.csv_file_path)?;
 
     let mut player_data_map = HashMap::new();
     reader.deserialize().for_each(|result| {
@@ -61,30 +63,32 @@ fn main() -> anyhow::Result<()> {
     let mut mean_score_map = BTreeMap::new();
     player_data_map.iter().for_each(|(player_id, score_data)| {
         let mean_score = (score_data.sum as f64 / score_data.count as f64).round() as u64;
-        let player_id_vec = mean_score_map.entry(mean_score).or_insert(vec![]);
-        player_id_vec.push(player_id.clone());
+        let player_ids = mean_score_map.entry(mean_score).or_insert(vec![]);
+        player_ids.push(player_id);
     });
 
-    let mut writer = csv::Writer::from_writer(vec![]);
-    let mut count = 1;
+    // let mut out = BufWriter::new(stdout().lock());
+    let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(vec![]);
+    let mut count = 0;
     let mut rank = 1;
-    for (mean_score, player_id_vec) in mean_score_map.iter().rev() {
-        for player_id in player_id_vec {
+    println!("rank,player_id,mean_score");
+    for (mean_score, player_ids) in mean_score_map.iter_mut().rev() {
+        player_ids.sort();
+        for player_id in player_ids.iter() {
             writer.serialize(RankingValue {
                 rank,
-                player_id,
+                player_id: player_id.as_str(),
                 mean_score: *mean_score,
             })?;
             count += 1;
         }
-        rank += player_id_vec.len() as u64;
+        rank += player_ids.len() as u64;
 
-        if count == LIMIT {
+        if count >= LIMIT {
             break;
         }
     }
 
     print!("{}", String::from_utf8(writer.into_inner()?)?);
-
     Ok(())
 }
