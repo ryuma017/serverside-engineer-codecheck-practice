@@ -38,17 +38,21 @@ impl ScoreData {
 
 pub fn run(file_path: PathBuf) -> Result<(), anyhow::Error> {
     let mut reader = csv::Reader::from_path(file_path)?;
-                                       // ^ 内部的には `io::BufReader` が使われるぽい(?)から多分早い
 
-    let mut player_data_map = set_player_data_map(&mut reader)?;
+    let mut player_data_map = HashMap::new();
+    set_player_data_map(&mut reader, &mut player_data_map)?;
 
-    let mut mean_score_map = set_mean_score_map(&mut player_data_map)?;
+    let mut mean_score_map = BTreeMap::new();
+    set_mean_score_map(&mut player_data_map, &mut mean_score_map)?;
 
     output_ranking(&mut mean_score_map)
+    // output(&mut mean_score_map);
 }
 
-fn set_player_data_map(reader: &mut csv::Reader<std::fs::File>) -> Result<HashMap<String, ScoreData>, anyhow::Error> {
-    let mut player_data_map = HashMap::new();
+fn set_player_data_map(
+    reader: &mut csv::Reader<std::fs::File>,
+    player_data_map: &mut HashMap<String, ScoreData>,
+) -> Result<(), anyhow::Error> {
     reader.deserialize().for_each(|result| {
         let record: LogValue = result.expect("Failed to deserialize a record");
         let score_data = player_data_map
@@ -56,21 +60,25 @@ fn set_player_data_map(reader: &mut csv::Reader<std::fs::File>) -> Result<HashMa
             .or_insert_with(ScoreData::new);
         score_data.add(record.score);
     });
-    Ok(player_data_map)
+    Ok(())
 }
 
-fn set_mean_score_map(player_data_map: &mut HashMap<String, ScoreData>) -> Result<BTreeMap<u64, Vec<String>>, anyhow::Error> {
-    let mut mean_score_map = BTreeMap::new();
+fn set_mean_score_map(
+    player_data_map: &mut HashMap<String, ScoreData>,
+    mean_score_map: &mut BTreeMap<u64, Vec<String>>,
+) -> Result<(), anyhow::Error> {
     player_data_map.iter().for_each(|(player_id, score_data)| {
         let mean_score = (score_data.sum as f64 / score_data.count as f64).round() as u64;
         let player_ids = mean_score_map.entry(mean_score).or_insert(vec![]);
         player_ids.push(player_id.clone());
     });
-    Ok(mean_score_map)
+    Ok(())
 }
 
 fn output_ranking(mean_score_map: &mut BTreeMap<u64, Vec<String>>) -> Result<(), anyhow::Error> {
-    let mut writer = csv::WriterBuilder::new().has_headers(false).from_writer(vec![]);
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .from_writer(vec![]);
     let mut count = 0;
     let mut rank = 1;
     println!("{OUTPUT_CSV_HEADER}");
