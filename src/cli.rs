@@ -1,10 +1,25 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
+use clap::Parser;
+
 use serde::{Deserialize, Serialize};
 
 const LIMIT: u32 = 10;
 const OUTPUT_CSV_HEADER: &str = "rank,player_id,mean_score";
+
+/// Reads CSV-formatted play logs of three specific columns and calculates the top 10 ranking players
+#[derive(Parser)]
+#[clap(about, long_about = None)]
+pub struct Args {
+    /// Path to CSV file
+    #[clap(parse(from_os_str))]
+    pub csv_file_path: PathBuf,
+}
+
+pub fn parse_args() -> Args {
+    Args::parse()
+}
 
 #[derive(Deserialize)]
 struct LogValue {
@@ -46,7 +61,6 @@ pub fn run(file_path: PathBuf) -> Result<(), anyhow::Error> {
     set_mean_score_map(&mut player_data_map, &mut mean_score_map)?;
 
     output_ranking(&mut mean_score_map)
-    // output(&mut mean_score_map);
 }
 
 fn set_player_data_map(
@@ -99,6 +113,6 @@ fn output_ranking(mean_score_map: &mut BTreeMap<u64, Vec<String>>) -> Result<(),
         }
     }
 
-    print!("{}", String::from_utf8(writer.into_inner()?)?); // `into_inner` 内部で flush してる
+    print!("{}", String::from_utf8(writer.into_inner()?)?);
     Ok(())
 }
